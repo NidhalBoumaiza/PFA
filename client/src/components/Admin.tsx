@@ -98,7 +98,6 @@ const Admin = () => {
         setLoading(true);
         const response = await statsAPI.getAdminStats();
         setStats(response.data);
-        console.log("Admin stats:", response.data);
       } catch (err: any) {
         console.error("Error fetching admin stats:", err);
         setError(err.message || "Failed to load statistics");
@@ -603,45 +602,6 @@ const Admin = () => {
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
           Admin Settings
         </h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-800 dark:text-white">
-                Allow Team Creation
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Allow team leaders to create new teams
-              </p>
-            </div>
-            <div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  defaultChecked
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-800 dark:text-white">
-                Debug Mode
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Enable detailed error logs
-              </p>
-            </div>
-            <div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Team Leader Task Permissions */}

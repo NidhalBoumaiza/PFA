@@ -24,6 +24,9 @@ export const auth = async (req, res, next) => {
   }
 };
 
+// Alternative name for auth (for compatibility)
+export const protect = auth;
+
 export const adminAuth = async (req, res, next) => {
   try {
     await auth(req, res, () => {
@@ -37,6 +40,31 @@ export const adminAuth = async (req, res, next) => {
   } catch (error) {
     res.status(401).json({ message: "Please authenticate" });
   }
+};
+
+// Flexible authorization middleware that accepts multiple roles
+export const authorize = (roles) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res
+          .status(401)
+          .json({ message: "Please authenticate" });
+      }
+
+      if (!roles.includes(req.user.role)) {
+        return res.status(403).json({
+          message: `Access denied. Required roles: ${roles.join(
+            ", "
+          )}`,
+        });
+      }
+
+      next();
+    } catch (error) {
+      res.status(401).json({ message: "Please authenticate" });
+    }
+  };
 };
 
 // Middleware to verify the user is a team leader with permission to manage tasks

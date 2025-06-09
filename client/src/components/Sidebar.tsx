@@ -10,17 +10,15 @@ import {
   UserCircle,
   BarChart3,
   Shield,
-  Wifi,
   Crown,
+  FolderOpen,
+  UserX,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const Sidebar = () => {
   const { user, logout, isTeamLeader, isAdmin } = useAuth();
   const navigate = useNavigate();
-
-  // Check if this is a development environment
-  const isDev = import.meta.env.DEV;
 
   const navItems = [
     { name: "Dashboard", path: "/dashboard", icon: Home },
@@ -36,6 +34,11 @@ const Sidebar = () => {
             path: "/unassigned-tasks",
             icon: List,
           },
+          {
+            name: "Projects",
+            path: "/projects",
+            icon: FolderOpen,
+          },
         ]
       : []),
     ...(isAdmin()
@@ -45,6 +48,16 @@ const Sidebar = () => {
             name: "Team Leaders",
             path: "/team-leaders",
             icon: Crown,
+          },
+          {
+            name: "Deleted Users",
+            path: "/deleted-users",
+            icon: UserX,
+          },
+          {
+            name: "Projects",
+            path: "/projects",
+            icon: FolderOpen,
           },
         ]
       : []),
@@ -66,16 +79,6 @@ const Sidebar = () => {
           <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
             Team Management
           </h1>
-
-          {/* API Status indicator - only in development mode */}
-          {isDev && (
-            <div className="mt-2 flex items-center">
-              <div className="flex items-center text-xs text-green-500 dark:text-green-400">
-                <Wifi className="h-3 w-3 mr-1" />
-                <span>API Connected</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {user && (

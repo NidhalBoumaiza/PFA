@@ -30,6 +30,22 @@ export const getAllUsersAdmin = async (req, res) => {
   }
 };
 
+// Get only deleted users (admin only)
+export const getDeletedUsers = async (req, res) => {
+  try {
+    const deletedUsers = await User.find({
+      isDeleted: true,
+    }).populate("teamId");
+    // Convert to JSON to include virtuals
+    const usersWithVirtuals = deletedUsers.map((user) =>
+      user.toJSON()
+    );
+    res.json(usersWithVirtuals);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const createUser = async (req, res) => {
   try {
     // Handle profile picture upload
@@ -259,10 +275,11 @@ export const toggleTeamLeaderTaskPermission = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Verify this is a team leader
+    // Check if user is a team leader
     if (user.role !== "team_leader") {
       return res.status(400).json({
-        message: "This action can only be performed on team leaders",
+        message:
+          "Only team leaders can have task permissions modified",
       });
     }
 
@@ -271,20 +288,159 @@ export const toggleTeamLeaderTaskPermission = async (req, res) => {
     await user.save();
 
     res.json({
-      message: `Team leader's task management permission ${
-        user.canManageTasks ? "enabled" : "disabled"
-      }`,
-      user: {
+      message: `Task management permission ${
+        user.canManageTasks ? "granted" : "revoked"
+      } for ${user.name}`,
+      user: user.toJSON(),
+    });
+  } catch (error) {
+    console.error("Toggle task permission error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Change password for authenticated user
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id; // Get user ID from auth middleware
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Password change error:", error);
+    res.status(500).json({ message: "Error updating password" });
+  }
+};
+
+// Restore a soft-deleted user (admin only)
+export const restoreUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Find the deleted user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.isDeleted) {
+      return res.status(400).json({ message: "User is not deleted" });
+    }
+
+    // Restore the user
+    user.isDeleted = false;
+    await user.save();
+
+    res.json({
+      message: "User restored successfully",
+      user: user.toJSON(),
+    });
+  } catch (error) {
+    console.error("Restore user error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Permanently delete a specific user (admin only)
+export const permanentDeleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Find and permanently delete the user
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "User permanently deleted",
+      deletedUser: {
         id: user._id,
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        role: user.role,
-        teamId: user.teamId,
-        canManageTasks: user.canManageTasks,
       },
     });
   } catch (error) {
+    console.error("Permanent delete user error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Bulk restore users (admin only)
+export const bulkRestoreUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid user IDs provided" });
+    }
+
+    // Restore multiple users
+    const result = await User.updateMany(
+      { _id: { $in: userIds }, isDeleted: true },
+      { $set: { isDeleted: false } }
+    );
+
+    res.json({
+      message: `${result.modifiedCount} users restored successfully`,
+      restoredCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Bulk restore users error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Bulk permanent delete users (admin only)
+export const bulkPermanentDeleteUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid user IDs provided" });
+    }
+
+    // Permanently delete multiple users
+    const result = await User.deleteMany({
+      _id: { $in: userIds },
+      isDeleted: true,
+    });
+
+    res.json({
+      message: `${result.deletedCount} users permanently deleted`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Bulk permanent delete users error:", error);
     res.status(500).json({ message: error.message });
   }
 };

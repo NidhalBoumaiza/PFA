@@ -13,6 +13,7 @@ import taskRoutes from "./routes/taskRoutes.js";
 import equipmentRoutes from "./routes/equipmentRoutes.js";
 import authRoutes from "./routes/auth.js";
 import statsRoutes from "./routes/statsRoutes.js";
+import projectRoutes from "./routes/projects.js";
 
 dotenv.config();
 
@@ -46,6 +47,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/projects", projectRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

@@ -1,6 +1,7 @@
 import Task from "../models/Task.js";
 import User from "../models/User.js";
 import Team from "../models/Team.js";
+import Project from "../models/Project.js";
 
 export const getTasks = async (req, res) => {
   try {
@@ -15,6 +16,9 @@ export const getTasks = async (req, res) => {
     if (req.query.teamId) {
       query.teamId = req.query.teamId;
     }
+    if (req.query.projectId) {
+      query.projectId = req.query.projectId;
+    }
     if (req.query.status) {
       query.status = req.query.status;
     }
@@ -27,7 +31,8 @@ export const getTasks = async (req, res) => {
 
     const tasks = await Task.find(query)
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
 
     res.json(tasks);
   } catch (error) {
@@ -45,13 +50,38 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // If user is a team leader, ensure the task is assigned to their team
-    if (req.user.role === "team_leader") {
-      req.body.teamId = req.user.teamId;
-    }
-
     // Handle assignedTo field - remove it if it's empty string
     const taskData = { ...req.body };
+
+    // Validate projectId is provided
+    if (!taskData.projectId) {
+      return res
+        .status(400)
+        .json({ message: "Project ID is required" });
+    }
+
+    // Verify project exists and get team info
+    const project = await Project.findById(
+      taskData.projectId
+    ).populate("teamId");
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // Set teamId from project
+    taskData.teamId = project.teamId._id;
+
+    // If user is a team leader, ensure the task is assigned to their team
+    if (req.user.role === "team_leader") {
+      if (
+        project.teamId._id.toString() !== req.user.teamId.toString()
+      ) {
+        return res.status(403).json({
+          message:
+            "Access denied: You can only create tasks for projects in your team",
+        });
+      }
+    }
 
     // Remove the assignedTo field if it's empty or an empty string
     if (!taskData.assignedTo || taskData.assignedTo === "") {
@@ -64,7 +94,8 @@ export const createTask = async (req, res) => {
     // Populate references and return
     const populatedTask = await Task.findById(savedTask._id)
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
 
     res.status(201).json(populatedTask);
   } catch (error) {
@@ -101,6 +132,17 @@ export const updateTask = async (req, res) => {
     // Handle assignedTo field - remove it if it's empty string
     const updateData = { ...req.body };
 
+    // If projectId is being updated, validate and update teamId
+    if (updateData.projectId) {
+      const project = await Project.findById(
+        updateData.projectId
+      ).populate("teamId");
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      updateData.teamId = project.teamId._id;
+    }
+
     // Remove the assignedTo field if it's empty or an empty string
     if (updateData.assignedTo === "") {
       delete updateData.assignedTo;
@@ -112,7 +154,8 @@ export const updateTask = async (req, res) => {
       { new: true }
     )
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
     res.json(updatedTask);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -166,6 +209,11 @@ export const getTasksByTeam = async (req, res) => {
       query.status = req.query.status;
     }
 
+    // Apply project filter if provided
+    if (req.query.projectId) {
+      query.projectId = req.query.projectId;
+    }
+
     // If user is a team leader, ensure they only access their own team's tasks
     if (
       req.user.role === "team_leader" &&
@@ -179,7 +227,56 @@ export const getTasksByTeam = async (req, res) => {
 
     const tasks = await Task.find(query)
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
+
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get tasks by project ID
+export const getTasksByProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Verify project exists and get team info
+    const project = await Project.findById(projectId).populate(
+      "teamId"
+    );
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // If user is a team leader, ensure they only access projects from their team
+    if (req.user.role === "team_leader") {
+      if (
+        project.teamId._id.toString() !== req.user.teamId.toString()
+      ) {
+        return res.status(403).json({
+          message:
+            "Access denied: You can only view tasks from projects in your team",
+        });
+      }
+    }
+
+    let query = { projectId };
+
+    // Apply status filter if provided
+    if (req.query.status) {
+      query.status = req.query.status;
+    }
+
+    // Apply assignedTo filter if provided
+    if (req.query.assignedTo) {
+      query.assignedTo = req.query.assignedTo;
+    }
+
+    const tasks = await Task.find(query)
+      .populate("assignedTo")
+      .populate("teamId")
+      .populate("projectId");
 
     res.json(tasks);
   } catch (error) {
@@ -198,6 +295,11 @@ export const getTasksByUser = async (req, res) => {
       query.status = req.query.status;
     }
 
+    // Apply project filter if provided
+    if (req.query.projectId) {
+      query.projectId = req.query.projectId;
+    }
+
     // If user is a team leader, ensure they only access tasks from their team
     if (req.user.role === "team_leader") {
       query.teamId = req.user.teamId;
@@ -205,7 +307,8 @@ export const getTasksByUser = async (req, res) => {
 
     const tasks = await Task.find(query)
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
 
     res.json(tasks);
   } catch (error) {
@@ -264,7 +367,8 @@ export const assignTaskToTeamMember = async (req, res) => {
     // Return the updated task with populated fields
     const updatedTask = await Task.findById(taskId)
       .populate("assignedTo")
-      .populate("teamId");
+      .populate("teamId")
+      .populate("projectId");
 
     res.json(updatedTask);
   } catch (error) {
@@ -293,7 +397,48 @@ export const getUnassignedTeamTasks = async (req, res) => {
     const tasks = await Task.find({
       teamId: teamId,
       $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }],
-    }).populate("teamId");
+    })
+      .populate("teamId")
+      .populate("projectId");
+
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get unassigned tasks for a specific project
+export const getUnassignedProjectTasks = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Verify project exists and get team info
+    const project = await Project.findById(projectId).populate(
+      "teamId"
+    );
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // If user is a team leader, ensure they only access projects from their team
+    if (req.user.role === "team_leader") {
+      if (
+        project.teamId._id.toString() !== req.user.teamId.toString()
+      ) {
+        return res.status(403).json({
+          message:
+            "Access denied: You can only view tasks from projects in your team",
+        });
+      }
+    }
+
+    // Find tasks that belong to the project but have no assignedTo value
+    const tasks = await Task.find({
+      projectId: projectId,
+      $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }],
+    })
+      .populate("teamId")
+      .populate("projectId");
 
     res.json(tasks);
   } catch (error) {

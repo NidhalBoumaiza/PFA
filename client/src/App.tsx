@@ -13,6 +13,7 @@ import Dashboard from "./components/Dashboard";
 import Members from "./components/Members";
 import TeamDetail from "./components/TeamDetail";
 import MemberDetail from "./components/MemberDetail";
+import ProjectDetail from "./components/ProjectDetail";
 import Settings from "./components/Settings";
 import SignIn from "./components/Auth/SignIn";
 import SignUp from "./components/Auth/SignUp";
@@ -20,11 +21,13 @@ import ForgotPassword from "./components/Auth/ForgotPassword";
 import ResetPassword from "./components/Auth/ResetPassword";
 import Admin from "./components/Admin";
 import TeamLeaders from "./components/Admin/TeamLeaders";
+import Projects from "./components/Admin/Projects";
 import TeamLeaderDashboard from "./components/TeamLeaderDashboard";
 import UnassignedTasksView from "./components/UnassignedTasksView";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./context/AuthContext";
+import DeletedUsers from "./components/Admin/DeletedUsers";
 
 const App = () => {
   const { loading, isAuthenticated } = useAuth();
@@ -121,6 +124,34 @@ const App = () => {
                   <Sidebar />
                   <main className="flex-1 overflow-y-auto">
                     <TeamLeaders />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+                  <Sidebar />
+                  <main className="flex-1 overflow-y-auto">
+                    <Projects />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/projects/:projectId"
+            element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+                  <Sidebar />
+                  <main className="flex-1 overflow-y-auto">
+                    <ProjectDetail />
                   </main>
                 </div>
               </ProtectedRoute>
@@ -247,6 +278,20 @@ const App = () => {
                   <Sidebar />
                   <main className="flex-1 overflow-y-auto">
                     <UnassignedTasksView />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/deleted-users"
+            element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+                  <Sidebar />
+                  <main className="flex-1 overflow-y-auto">
+                    <DeletedUsers />
                   </main>
                 </div>
               </ProtectedRoute>

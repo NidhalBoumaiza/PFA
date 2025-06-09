@@ -98,42 +98,42 @@ export const AuthProvider: React.FC<{
       setLoading(true);
       console.log("AuthContext: Attempting login API call");
 
-      const response = await authAPI.login({ email, password });
-      console.log(
-        "AuthContext: Login API response received",
-        response.status
-      );
+        const response = await authAPI.login({ email, password });
+        console.log(
+          "AuthContext: Login API response received",
+          response.status
+        );
 
-      if (response.data) {
-        const userData = response.data.user;
+        if (response.data) {
+          const userData = response.data.user;
 
-        // Save token
-        if (response.data.token) {
-          localStorage.setItem("token", response.data.token);
+          // Save token
+          if (response.data.token) {
+            localStorage.setItem("token", response.data.token);
+          }
+
+          // Set user data
+          setUser({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+          phone: userData.phone,
+            avatar:
+              userData.avatar ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                userData.name
+              )}`,
+            profilePictureUrl: userData.profilePictureUrl,
+            role: userData.role || "team_member",
+            teamId: userData.teamId,
+            canManageTasks: userData.canManageTasks || false,
+          });
+
+          setIsAuthenticated(true);
+          return true;
         }
 
-        // Set user data
-        setUser({
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone,
-          avatar:
-            userData.avatar ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-              userData.name
-            )}`,
-          profilePictureUrl: userData.profilePictureUrl,
-          role: userData.role || "team_member",
-          teamId: userData.teamId,
-          canManageTasks: userData.canManageTasks || false,
-        });
-
-        setIsAuthenticated(true);
-        return true;
-      }
-
-      return false;
+        return false;
     } catch (error: any) {
       console.error("AuthContext: Login failed:", error);
       // Re-throw the error to be handled by the component

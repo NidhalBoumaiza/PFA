@@ -380,6 +380,13 @@ export const equipmentAPI = {
   deleteEquipment: (id: string) => {
     return api.delete(`/equipment/${id}`);
   },
+  assignEquipment: async (equipmentId: string, userId: string) => {
+    const response = await api.put(
+      `/equipment/${equipmentId}/assign`,
+      { userId }
+    );
+    return { ...response, data: transformEquipment(response.data) };
+  },
 
   // Equipment filtering
   getEquipmentByStatus: (status: string) => {
@@ -481,6 +488,82 @@ export const statsAPI = {
   },
   getTeamStats: (teamId: string) => {
     return api.get(`/stats/team/${teamId}`);
+  },
+};
+
+// Projects API
+export const projectAPI = {
+  getProjects: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    priority?: string;
+    teamId?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    dateField?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== "") {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const response = await api.get(`/projects?${queryParams}`);
+    return response;
+  },
+
+  getProject: async (id: string) => {
+    const response = await api.get(`/projects/${id}`);
+    return response;
+  },
+
+  createProject: async (projectData: any) => {
+    const response = await api.post("/projects", projectData);
+    return response;
+  },
+
+  updateProject: async (id: string, projectData: any) => {
+    const response = await api.put(`/projects/${id}`, projectData);
+    return response;
+  },
+
+  deleteProject: async (id: string) => {
+    const response = await api.delete(`/projects/${id}`);
+    return response;
+  },
+
+  getTeamProjects: async (
+    teamId: string,
+    params?: { status?: string; search?: string }
+  ) => {
+    const queryParams = new URLSearchParams();
+
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== "") {
+          queryParams.append(key, value);
+        }
+      });
+    }
+
+    const response = await api.get(
+      `/projects/team/${teamId}?${queryParams}`
+    );
+    return response;
+  },
+
+  getProjectStats: async (teamId?: string) => {
+    const queryParams = teamId ? `?teamId=${teamId}` : "";
+    const response = await api.get(`/projects/stats${queryParams}`);
+    return response;
   },
 };
 

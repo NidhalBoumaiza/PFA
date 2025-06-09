@@ -29,6 +29,12 @@ const taskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      required: true,
+    },
+    // Keep teamId for backward compatibility and easier queries
     teamId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Team",
@@ -37,6 +43,20 @@ const taskSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
     },
+    estimatedHours: {
+      type: Number,
+      default: 0,
+    },
+    actualHours: {
+      type: Number,
+      default: 0,
+    },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     createdAt: {
       type: Date,
       default: Date.now,
@@ -57,6 +77,20 @@ taskSchema.index({ priority: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ teamId: 1 });
+taskSchema.index({ projectId: 1 });
+taskSchema.index({ projectId: 1, status: 1 });
+
+// Virtual for project
+taskSchema.virtual("project", {
+  ref: "Project",
+  localField: "projectId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+// Ensure virtual fields are serialized
+taskSchema.set("toJSON", { virtuals: true });
+taskSchema.set("toObject", { virtuals: true });
 
 const Task = mongoose.model("Task", taskSchema);
 

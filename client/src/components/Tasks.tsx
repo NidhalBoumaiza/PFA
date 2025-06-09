@@ -16,7 +16,7 @@ import {
   ChevronsRight,
   X,
 } from "lucide-react";
-import { taskAPI, teamAPI } from "../services/api";
+import { taskAPI, teamAPI, projectAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { useModal } from "../context/ModalContext";
 
@@ -29,6 +29,7 @@ interface Task {
   dueDate: string;
   assignedTo: string;
   teamId: string;
+  projectId: string;
   createdAt: string;
   completedAt?: string;
 }
@@ -36,13 +37,35 @@ interface Task {
 interface Team {
   id: string;
   name: string;
-  members?: {
+  description: string;
+  members: Array<{
     id: string;
     name: string;
-    role?: string;
-    email?: string;
-    avatar?: string;
-  }[];
+    email: string;
+  }>;
+}
+
+interface Project {
+  _id: string;
+  name: string;
+  description: string;
+  teamId: {
+    _id: string;
+    name: string;
+    description: string;
+    members?: Array<{
+      user: {
+        _id: string;
+        name: string;
+        email: string;
+        avatar?: string;
+        profilePictureUrl?: string;
+      };
+      role: string;
+    }>;
+  };
+  status: string;
+  priority: string;
 }
 
 const Tasks = () => {
@@ -50,6 +73,7 @@ const Tasks = () => {
   const { showModal } = useModal();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState(false);
@@ -70,6 +94,7 @@ const Tasks = () => {
     dueDate: new Date().toISOString().split("T")[0],
     assignedTo: "",
     teamId: user?.teamId || "",
+    projectId: "",
   });
 
   // Filter state
@@ -95,6 +120,38 @@ const Tasks = () => {
   const [showDateRangePicker, setShowDateRangePicker] =
     useState(false);
 
+  // Get the selected project and its team
+  const selectedProject = projects.find(
+    (p) => p._id === newTask.projectId
+  );
+  const projectTeam = selectedProject?.teamId;
+  // Transform team members to match expected format
+  const teamMembers =
+    projectTeam?.members?.map((member) => ({
+      _id: member.user._id,
+      name: member.user.name,
+      email: member.user.email,
+      avatar: member.user.avatar,
+      profilePictureUrl: member.user.profilePictureUrl,
+    })) || [];
+
+  // Update teamId when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      setNewTask((prev) => ({
+        ...prev,
+        teamId: selectedProject.teamId._id,
+        assignedTo: "", // Reset assigned member when project changes
+      }));
+    } else {
+      setNewTask((prev) => ({
+        ...prev,
+        teamId: "",
+        assignedTo: "",
+      }));
+    }
+  }, [selectedProject]);
+
   // Fetch data
   const fetchData = async () => {
     try {
@@ -111,13 +168,15 @@ const Tasks = () => {
         tasksPromise = taskAPI.getTasks();
       }
 
-      const [tasksRes, teamsRes] = await Promise.all([
+      const [tasksRes, teamsRes, projectsRes] = await Promise.all([
         tasksPromise,
         teamAPI.getTeams(),
+        projectAPI.getProjects(),
       ]);
 
       setTasks(tasksRes.data);
       setTeams(teamsRes.data);
+      setProjects(projectsRes.data.projects || projectsRes.data);
     } catch (err: unknown) {
       console.error("Error fetching data:", err);
 
@@ -155,7 +214,8 @@ const Tasks = () => {
 
   // Handle task creation
   const handleAddTask = async () => {
-    if (!newTask.title || !newTask.dueDate) return;
+    if (!newTask.title || !newTask.dueDate || !newTask.projectId)
+      return;
 
     try {
       setLoading(true);
@@ -219,7 +279,13 @@ const Tasks = () => {
 
   // Handle task update
   const handleUpdateTask = async () => {
-    if (!selectedTask || !newTask.title || !newTask.dueDate) return;
+    if (
+      !selectedTask ||
+      !newTask.title ||
+      !newTask.dueDate ||
+      !newTask.projectId
+    )
+      return;
 
     try {
       setLoading(true);
@@ -416,6 +482,7 @@ const Tasks = () => {
       dueDate: new Date().toISOString().split("T")[0],
       assignedTo: "",
       teamId: user?.teamId || "",
+      projectId: "",
     });
   };
 
@@ -430,6 +497,7 @@ const Tasks = () => {
       dueDate: new Date(task.dueDate).toISOString().split("T")[0],
       assignedTo: task.assignedTo,
       teamId: task.teamId,
+      projectId: task.projectId,
     });
     setShowTaskModal(true);
   };
@@ -532,6 +600,18 @@ const Tasks = () => {
   const goToNextPage = () =>
     setCurrentPage((prev) => Math.min(prev + 1, totalPages));
 
+  // Get team options for dropdowns
+  const teamOptions = teams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    members: team.members || [],
+  }));
+
+  // Check if user can manage tasks
+  const userCanManageTasks = () => {
+    return canManageTasks();
+  };
+
   // Find team and assignee names
   const getTeamName = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId);
@@ -568,17 +648,6 @@ const Tasks = () => {
     medium:
       "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
     high: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  };
-
-  // Filter teams dropdown (only show options that the team leader should see)
-  const teamOptions =
-    isTeamLeader() && user?.teamId
-      ? teams.filter((team) => team.id === user.teamId)
-      : teams;
-
-  // Check if user can perform task management actions
-  const userCanManageTasks = () => {
-    return canManageTasks();
   };
 
   // Add a utility function to format dates for display
@@ -1186,56 +1255,103 @@ const Tasks = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Team
+                  Project
                 </label>
                 <select
-                  value={newTask.teamId}
+                  value={newTask.projectId}
                   onChange={(e) =>
-                    setNewTask({ ...newTask, teamId: e.target.value })
+                    setNewTask({
+                      ...newTask,
+                      projectId: e.target.value,
+                    })
                   }
                   className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="">Select Team</option>
-                  {teamOptions.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
+                  <option value="">Select Project</option>
+                  {projects.map((project) => (
+                    <option key={project._id} value={project._id}>
+                      {project.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Assigned To
-                </label>
-                <select
-                  value={newTask.assignedTo}
-                  onChange={(e) =>
-                    setNewTask({
-                      ...newTask,
-                      assignedTo: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                  disabled={!newTask.teamId}
-                >
-                  <option value="">Not Assigned (Team Task)</option>
-                  {newTask.teamId &&
-                    teamOptions
-                      .find((team) => team.id === newTask.teamId)
-                      ?.members?.map((member) => (
-                        <option key={member.id} value={member.id}>
+              {selectedProject && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Team
+                  </label>
+                  <div className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                    {projectTeam?.name || "No team assigned"}
+                  </div>
+                  {projectTeam?.description && (
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {projectTeam.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedProject &&
+                projectTeam &&
+                teamMembers.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Assigned To
+                    </label>
+                    <select
+                      value={newTask.assignedTo}
+                      onChange={(e) =>
+                        setNewTask({
+                          ...newTask,
+                          assignedTo: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="">
+                        Not Assigned (Team Task)
+                      </option>
+                      {teamMembers.map((member) => (
+                        <option key={member._id} value={member._id}>
                           {member.name}
                         </option>
                       ))}
-                </select>
-                {newTask.teamId && !newTask.assignedTo && (
-                  <p className="mt-1 text-sm text-indigo-600 dark:text-indigo-400">
-                    This task will be assigned to the team without a
-                    specific assignee.
-                  </p>
+                    </select>
+                    {!newTask.assignedTo && (
+                      <p className="mt-1 text-sm text-indigo-600 dark:text-indigo-400">
+                        This task will be assigned to the team without
+                        a specific assignee.
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
+
+              {selectedProject &&
+                (!projectTeam || teamMembers.length === 0) && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="flex items-center">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2" />
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        {!projectTeam
+                          ? "This project is not assigned to any team. Please assign a team to this project first."
+                          : "This project's team has no members. Please add members to the team first."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+              {!selectedProject && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center">
+                    <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      Please select a project to see available team
+                      members for assignment.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -1251,8 +1367,8 @@ const Tasks = () => {
                   disabled={
                     !newTask.title ||
                     !newTask.dueDate ||
-                    loading ||
-                    !newTask.teamId
+                    !newTask.projectId ||
+                    loading
                   }
                   className={`px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     loading ? "opacity-70 cursor-wait" : ""

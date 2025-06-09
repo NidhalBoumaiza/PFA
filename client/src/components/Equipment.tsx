@@ -10,6 +10,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  User,
+  UserX,
+  Search,
+  ChevronDown,
 } from "lucide-react";
 import { equipmentAPI, userAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -21,10 +25,25 @@ interface EquipmentItem {
   name: string;
   type: string;
   status: "available" | "assigned" | "maintenance";
-  assignedTo?: string;
+  assignedTo?: {
+    _id: string;
+    name: string;
+    email: string;
+    avatar?: string;
+    profilePictureUrl?: string;
+  };
   serialNumber: string;
   purchaseDate: string;
   notes?: string;
+}
+
+interface AvailableUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  profilePictureUrl?: string;
 }
 
 const statusColors = {
@@ -34,6 +53,127 @@ const statusColors = {
     "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   maintenance:
     "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+};
+
+// Add SearchableUserSelect component before Equipment component
+const SearchableUserSelect = ({
+  users,
+  selectedUserId,
+  onUserSelect,
+  placeholder = "Search and select a member...",
+  className = "",
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredUsers = users.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const selectedUser = users.find(
+    (user) => user.id === selectedUserId
+  );
+
+  const handleSelect = (userId) => {
+    onUserSelect(userId);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest(".searchable-dropdown")) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative searchable-dropdown ${className}`}>
+      <div
+        className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white bg-white cursor-pointer flex items-center justify-between"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span
+          className={
+            selectedUser
+              ? "text-gray-900 dark:text-white"
+              : "text-gray-500 dark:text-gray-400"
+          }
+        >
+          {selectedUser ? selectedUser.name : placeholder}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b dark:border-gray-600">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search members..."
+                className="w-full pl-9 pr-3 py-2 text-sm border dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-600 dark:text-white"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="max-h-40 overflow-y-auto">
+            <div
+              className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm"
+              onClick={() => handleSelect("")}
+            >
+              <div className="flex items-center gap-2">
+                <UserX className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-500 dark:text-gray-400">
+                  Unassigned
+                </span>
+              </div>
+            </div>
+            {filteredUsers.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                No members found
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm"
+                  onClick={() => handleSelect(user.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <div className="font-medium dark:text-white">
+                        {user.name}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {user.email}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const Equipment = () => {
@@ -49,13 +189,17 @@ const Equipment = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [availableUsers, setAvailableUsers] = useState<
+    AvailableUser[]
+  >([]);
+  const [allUsers, setAllUsers] = useState<AvailableUser[]>([]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [newEquipment, setNewEquipment] = useState<
-    Partial<EquipmentItem>
+    Partial<EquipmentItem> & { assignedToId?: string }
   >({
     name: "",
     type: "",
@@ -63,6 +207,7 @@ const Equipment = () => {
     serialNumber: "",
     purchaseDate: new Date().toISOString().split("T")[0],
     notes: "",
+    assignedToId: "",
   });
 
   useEffect(() => {
@@ -81,8 +226,32 @@ const Equipment = () => {
       }
     };
 
-    fetchEquipment();
+    const fetchInitialData = async () => {
+      await Promise.all([fetchEquipment(), fetchUsers()]);
+    };
+
+    fetchInitialData();
   }, []);
+
+  // Fetch users when modal opens
+  useEffect(() => {
+    if (showAddModal) {
+      fetchUsers();
+    }
+  }, [showAddModal]);
+
+  const fetchUsers = async () => {
+    try {
+      const [availableRes, allRes] = await Promise.all([
+        userAPI.getAvailableUsers(),
+        userAPI.getUsers(),
+      ]);
+      setAvailableUsers(availableRes.data);
+      setAllUsers(allRes.data);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    }
+  };
 
   const handleAddEquipment = async () => {
     if (
@@ -94,8 +263,19 @@ const Equipment = () => {
 
     try {
       setLoading(true);
+      const equipmentData = { ...newEquipment };
+
+      // If assigning to a user, set the assignedTo field
+      if (equipmentData.assignedToId) {
+        equipmentData.assignedTo = equipmentData.assignedToId;
+        equipmentData.status = "assigned";
+      }
+
+      // Remove the temporary assignedToId field
+      delete equipmentData.assignedToId;
+
       const response = await equipmentAPI.createEquipment(
-        newEquipment
+        equipmentData
       );
       setEquipment([...equipment, response.data]);
       setShowAddModal(false);
@@ -123,9 +303,28 @@ const Equipment = () => {
 
     try {
       setLoading(true);
+      const equipmentData = { ...newEquipment };
+
+      // If assigning to a user, set the assignedTo field
+      if (equipmentData.assignedToId) {
+        equipmentData.assignedTo = equipmentData.assignedToId;
+        if (equipmentData.status === "available") {
+          equipmentData.status = "assigned";
+        }
+      } else if (equipmentData.assignedToId === "") {
+        // If clearing assignment
+        equipmentData.assignedTo = null;
+        if (equipmentData.status === "assigned") {
+          equipmentData.status = "available";
+        }
+      }
+
+      // Remove the temporary assignedToId field
+      delete equipmentData.assignedToId;
+
       const response = await equipmentAPI.updateEquipment(
         selectedEquipment.id,
-        newEquipment
+        equipmentData
       );
       setEquipment(
         equipment.map((item) =>
@@ -143,6 +342,42 @@ const Equipment = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Quick assignment function
+  const handleQuickAssignment = async (
+    equipmentId: string,
+    userId: string
+  ) => {
+    try {
+      const updateData = userId
+        ? { assignedTo: userId, status: "assigned" }
+        : { assignedTo: null, status: "available" };
+
+      const response = await equipmentAPI.updateEquipment(
+        equipmentId,
+        updateData
+      );
+
+      setEquipment(
+        equipment.map((item) =>
+          item.id === equipmentId ? response.data : item
+        )
+      );
+
+      showSnackbar(
+        userId
+          ? "Equipment assigned successfully!"
+          : "Equipment unassigned successfully!",
+        "success"
+      );
+    } catch (err) {
+      console.error("Error updating assignment:", err);
+      showSnackbar(
+        "Failed to update assignment. Please try again.",
+        "error"
+      );
     }
   };
 
@@ -180,7 +415,7 @@ const Equipment = () => {
       type: item.type,
       status: item.status,
       serialNumber: item.serialNumber,
-      assignedTo: item.assignedTo,
+      assignedToId: item.assignedTo?._id || "",
       purchaseDate: item.purchaseDate.split("T")[0],
       notes: item.notes,
     });
@@ -196,6 +431,7 @@ const Equipment = () => {
       serialNumber: "",
       purchaseDate: new Date().toISOString().split("T")[0],
       notes: "",
+      assignedToId: "",
     });
   };
 
@@ -457,6 +693,7 @@ const Equipment = () => {
                     <th className="px-6 py-3">Name</th>
                     <th className="px-6 py-3">Type</th>
                     <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3">Assigned To</th>
                     <th className="px-6 py-3">Serial Number</th>
                     <th className="px-6 py-3">Purchase Date</th>
                     <th className="px-6 py-3">Notes</th>
@@ -482,6 +719,39 @@ const Equipment = () => {
                           {item.status.charAt(0).toUpperCase() +
                             item.status.slice(1)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {userCanManageEquipment() ? (
+                          <SearchableUserSelect
+                            users={allUsers}
+                            selectedUserId={
+                              item.assignedTo?._id || ""
+                            }
+                            onUserSelect={(userId) =>
+                              handleQuickAssignment(item.id, userId)
+                            }
+                            placeholder="Select member..."
+                            className="min-w-[200px]"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {item.assignedTo ? (
+                              <>
+                                <User className="h-4 w-4 text-gray-400" />
+                                <span className="text-sm">
+                                  {item.assignedTo.name}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <UserX className="h-4 w-4 text-gray-400" />
+                                <span className="text-sm text-gray-500">
+                                  Unassigned
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {item.serialNumber}
@@ -685,6 +955,32 @@ const Equipment = () => {
                     className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Assign to Member
+                </label>
+                <SearchableUserSelect
+                  users={allUsers}
+                  selectedUserId={newEquipment.assignedToId || ""}
+                  onUserSelect={(userId) => {
+                    setNewEquipment({
+                      ...newEquipment,
+                      assignedToId: userId,
+                      status: userId
+                        ? "assigned"
+                        : newEquipment.status === "assigned"
+                        ? "available"
+                        : newEquipment.status,
+                    });
+                  }}
+                  placeholder="Search and select a member..."
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Selecting a member will automatically set status to
+                  "Assigned"
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

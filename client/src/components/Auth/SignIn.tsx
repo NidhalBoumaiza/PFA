@@ -12,48 +12,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useSnackbar } from "../../context/SnackbarContext";
 import { apiUrl } from "../../services/api";
-
-// Error Modal Component
-const ErrorModal = ({
-  message,
-  onClose,
-}: {
-  message: string;
-  onClose: () => void;
-}) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-xl">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-red-600 dark:text-red-400 flex items-center">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            Login Error
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="mb-5">
-          <p className="text-gray-700 dark:text-gray-300">
-            {message}
-          </p>
-        </div>
-        <div className="flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const SignIn = () => {
   const [formData, setFormData] = useState({
@@ -61,10 +21,9 @@ const SignIn = () => {
     password: "",
   });
   const [error, setError] = useState("");
-  const [credentialError, setCredentialError] = useState("");
-  const [showErrorModal, setShowErrorModal] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const { login, loading } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { isDarkMode } = useTheme();
 
@@ -72,13 +31,11 @@ const SignIn = () => {
     // Always clear previous errors
     setError("");
     setConnectionError(false);
-    setCredentialError("");
 
     console.log("Attempting login with:", formData.email);
 
     if (!formData.email.trim() || !formData.password.trim()) {
-      setCredentialError("Please enter both email and password");
-      setShowErrorModal(true);
+      showSnackbar("Please enter both email and password", "error");
       return;
     }
 
@@ -88,13 +45,14 @@ const SignIn = () => {
       console.log("Login result:", success);
 
       if (success) {
+        showSnackbar("Login successful! Welcome back.", "success");
         navigate("/dashboard");
       } else {
         // If login returns false but no error was thrown
-        setCredentialError(
-          "Invalid credentials or insufficient permissions"
+        showSnackbar(
+          "Invalid credentials or insufficient permissions",
+          "error"
         );
-        setShowErrorModal(true);
       }
     } catch (err: any) {
       console.error("Login error caught in component:", err);
@@ -106,29 +64,35 @@ const SignIn = () => {
         setError(
           "Unable to connect to the server. Please check if the server is running."
         );
+        showSnackbar(
+          "Unable to connect to the server. Please check your connection.",
+          "error"
+        );
         return;
       }
 
       // Handle specific HTTP status codes
       if (err.response?.status === 403) {
         console.log("Permission error (403)");
-        setError(
-          "Access denied. Only admins and team leaders can log in."
+        showSnackbar(
+          "Access denied. Only admins and team leaders can log in.",
+          "error"
         );
-        setShowErrorModal(true);
-      } else if (err.response?.status === 401) {
-        console.log(
-          "Authentication error (401) - Invalid credentials"
+      } else if (
+        err.response?.status === 401 ||
+        err.response?.status === 400
+      ) {
+        console.log("Authentication error - Invalid credentials");
+        showSnackbar(
+          "Invalid email or password. Please check your credentials.",
+          "error"
         );
-        setCredentialError("Invalid email or password");
-        setShowErrorModal(true);
       } else {
         console.log("Other API error:", err.response?.status);
-        setError(
+        const errorMessage =
           err.response?.data?.message ||
-            "An error occurred during login. Please try again."
-        );
-        setShowErrorModal(true);
+          "An error occurred during login. Please try again.";
+        showSnackbar(errorMessage, "error");
       }
     }
   };
@@ -145,10 +109,6 @@ const SignIn = () => {
 
     // Prevent form submission
     return false;
-  };
-
-  const closeErrorModal = () => {
-    setShowErrorModal(false);
   };
 
   return (
@@ -185,13 +145,6 @@ const SignIn = () => {
           </div>
         )}
 
-        {!connectionError && error && !showErrorModal && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md dark:bg-red-900/50 dark:text-red-400 dark:border-red-800 flex items-center">
-            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -218,11 +171,7 @@ const SignIn = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
-                className={`appearance-none block w-full px-3 py-2 border ${
-                  credentialError && !showErrorModal
-                    ? "border-red-500 dark:border-red-500"
-                    : "border-gray-300 dark:border-gray-600"
-                } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white`}
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Enter your email"
               />
             </div>
@@ -248,19 +197,9 @@ const SignIn = () => {
                     password: e.target.value,
                   })
                 }
-                className={`appearance-none block w-full px-3 py-2 border ${
-                  credentialError && !showErrorModal
-                    ? "border-red-500 dark:border-red-500"
-                    : "border-gray-300 dark:border-gray-600"
-                } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white`}
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Enter your password"
               />
-              {credentialError && !showErrorModal && (
-                <div className="mt-1 flex items-center text-sm text-red-600 dark:text-red-400">
-                  <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
-                  <span>{credentialError}</span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -303,18 +242,6 @@ const SignIn = () => {
             </Link>
           </p>
         </div>
-
-        {/* Error Modal */}
-        {showErrorModal && (
-          <ErrorModal
-            message={
-              credentialError ||
-              error ||
-              "An error occurred during login"
-            }
-            onClose={closeErrorModal}
-          />
-        )}
       </div>
     </div>
   );

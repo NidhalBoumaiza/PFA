@@ -22,6 +22,10 @@ export const transformTask = (task: any) => {
       typeof task.teamId === "object"
         ? task.teamId?._id || task.teamId || ""
         : task.teamId || "",
+    projectId:
+      typeof task.projectId === "object"
+        ? task.projectId?._id || task.projectId || ""
+        : task.projectId || "",
     createdAt: task.createdAt || new Date().toISOString(),
     completedAt: task.completedAt || null,
   };
@@ -66,7 +70,15 @@ export const transformEquipment = (equipment: any) => {
     name: equipment.name,
     type: equipment.type,
     status: equipment.status,
-    assignedTo: equipment.assignedTo || "",
+    assignedTo: equipment.assignedTo
+      ? typeof equipment.assignedTo === "object"
+        ? equipment.assignedTo
+        : {
+            _id: equipment.assignedTo,
+            name: "Unknown User",
+            email: "",
+          }
+      : null,
     serialNumber: equipment.serialNumber,
     purchaseDate: equipment.purchaseDate,
     notes: equipment.notes || "",
